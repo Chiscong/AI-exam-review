@@ -26,9 +26,10 @@ cd ai-quiz-master
 ```
 ### 2. Tạo và kích hoạt môi trường ảo (Khuyên dùng)
 # Windows
+```
 python -m venv venv
 venv\Scripts\activate
-
+```
 # macOS/Linux
 ```
 python3 -m venv venv
@@ -60,6 +61,7 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
 Truy cập: http://127.0.0.1:5000 trên trình duyệt của bạn.
 ### 📁 Cấu trúc thư mục
+```
 ├── app.py              # File xử lý logic chính (Backend)
 ├── .env                # Lưu trữ mã bí mật API Key
 ├── requirements.txt    # Danh sách thư viện cần cài đặt
@@ -68,6 +70,7 @@ Truy cập: http://127.0.0.1:5000 trên trình duyệt của bạn.
 ├── templates/          # Giao diện người dùng
 │   └── index.html      # Trang chủ ứng dụng
 └── uploads/            # Thư mục lưu file tạm thời khi người dùng upload
+```
 📝 Lưu ý
 Để AI nhận diện tốt nhất, file tài liệu của bạn nên có cấu trúc:
 Câu hỏi rõ ràng.
