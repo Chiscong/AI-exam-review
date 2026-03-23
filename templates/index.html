@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ Thống Ôn Thi AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .option-card {
+            transition: all 0.2s ease;
+            border: 2px solid #e5e7eb;
+            cursor: pointer;
+        }
+
+        .option-card:hover:not(.disabled) {
+            border-color: #93c5fd;
+            background-color: #eff6ff;
+        }
+
+        /* Màu sắc khi chọn đúng/sai */
+        .correct {
+            background-color: #dcfce7 !important; /* Green 100 */
+            border-color: #22c55e !important;    /* Green 500 */
+            color: #166534 !important;          /* Green 800 */
+        }
+
+        .incorrect {
+            background-color: #fee2e2 !important; /* Red 100 */
+            border-color: #ef4444 !important;    /* Red 500 */
+            color: #991b1b !important;          /* Red 800 */
+        }
+
+        .disabled {
+            pointer-events: none;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen font-sans">
+    <div class="max-w-4xl mx-auto py-10 px-4">
+        
+        <!-- Màn hình Upload -->
+        <div id="uploadBox" class="bg-white rounded-3xl shadow-2xl p-10 text-center">
+            <div class="mb-6 inline-block p-4 bg-blue-100 rounded-full">
+                <svg class="w-12 h-12 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                </svg>
+            </div>
+            <h1 class="text-3xl font-extrabold text-slate-800 mb-2">Tải Lên Tài Liệu</h1>
+            <p class="text-slate-500 mb-8">AI sẽ tự nhận diện câu hỏi và đáp án (*) để tạo bài tập</p>
+
+            <input type="file" id="fileInput" class="hidden" accept=".pdf,.docx">
+            <label for="fileInput" class="block w-full py-4 border-2 border-dashed border-slate-300 rounded-2xl cursor-pointer hover:border-blue-400 mb-6 transition">
+                <span id="fileName" class="text-slate-600 font-medium">Nhấn để chọn file Word hoặc PDF</span>
+            </label>
+
+            <button onclick="handleUpload()" id="uploadBtn" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-lg hover:bg-blue-700 shadow-lg shadow-blue-200 transition">
+                Bắt Đầu Học
+            </button>
+        </div>
+
+        <!-- Màn hình Làm Bài -->
+        <div id="quizBox" class="hidden bg-white rounded-2xl shadow-xl overflow-hidden">
+            <div class="bg-blue-600 p-4 text-white flex justify-between items-center shadow-md">
+                <div>
+                    <span id="progressLabel" class="text-xs font-bold uppercase tracking-wider opacity-80">Câu hỏi 1/10</span>
+                    <div id="liveScore" class="text-xl font-black">Điểm: 0</div>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <button onclick="prevQuestion()" class="bg-white/20 px-4 py-2 rounded-lg hover:bg-white/30 transition font-bold">Quay lại</button>
+                    <button onclick="exitQuiz()" class="bg-red-500 px-4 py-2 rounded-lg hover:bg-red-600 transition font-bold">Thoát</button>
+                </div>
+            </div>
+
+            <div class="p-8">
+                <div id="imageContainer" class="hidden mb-6 text-center">
+                    <img id="questionImage" src="" alt="Question image" class="max-h-72 mx-auto rounded-xl shadow-lg border-4 border-gray-50">
+                </div>
+
+                <h2 id="questionText" class="text-2xl font-bold mb-8 text-gray-800 leading-tight"></h2>
+
+                <div id="optionsGrid" class="space-y-4"></div>
+
+                <div class="mt-10 flex justify-between items-center border-t border-gray-100 pt-8">
+                    <button id="btnPrev" onclick="prevQuestion()" class="text-gray-400 font-black hover:text-blue-600 transition tracking-widest">← TRƯỚC</button>
+                    <div class="flex space-x-4">
+                        <button id="btnNext" onclick="nextQuestion()" class="bg-slate-800 text-white px-10 py-4 rounded-2xl font-bold hover:bg-black transition shadow-lg">TIẾP THEO →</button>
+                        <button id="btnSubmit" onclick="showReview()" class="hidden bg-green-600 text-white px-10 py-4 rounded-2xl font-bold hover:bg-green-700 transition shadow-lg">KẾT THÚC</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Màn hình Kết Quả -->
+        <div id="reviewBox" class="hidden space-y-6">
+            <div class="bg-white rounded-3xl p-10 text-center shadow-xl border-b-8 border-blue-500">
+                <h2 class="text-4xl font-black text-slate-800 mb-2">Hoàn Thành!</h2>
+                <p id="finalScore" class="text-3xl text-blue-600 font-black mb-8"></p>
+                <button onclick="location.reload()" class="bg-blue-600 text-white px-12 py-4 rounded-2xl font-bold text-lg shadow-xl hover:bg-blue-700 transition">Làm Bài Mới</button>
+            </div>
+            <div id="reviewList" class="space-y-4"></div>
+        </div>
+    </div>
+
+    <script>
+        let quizData = [];
+        let currentIndex = 0;
+        let userAnswers = {}; // Lưu index đáp án đã chọn {0: 1, 1: 3...}
+        let score = 0;
+
+        document.getElementById('fileInput').onchange = function() {
+            document.getElementById('fileName').innerText = this.files[0]?.name || 'Nhấn để chọn file Word hoặc PDF';
+        };
+
+        async function handleUpload() {
+            const fileInput = document.getElementById('fileInput');
+            if (!fileInput.files[0]) {
+                alert('Vui lòng chọn file!');
+                return;
+            }
+
+            const btn = document.getElementById('uploadBtn');
+            btn.disabled = true;
+            btn.innerText = 'AI đang phân tích dữ liệu...';
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            try {
+                const res = await fetch('/upload', { method: 'POST', body: formData });
+                const data = await res.json();
+
+                if (!res.ok) throw new Error(data.error || 'Lỗi server');
+
+                quizData = Array.isArray(data) ? data : [];
+                currentIndex = 0;
+                userAnswers = {};
+                score = 0;
+
+                document.getElementById('uploadBox').classList.add('hidden');
+                document.getElementById('quizBox').classList.remove('hidden');
+                showQuestion();
+            } catch (e) {
+                alert(e.message);
+                btn.disabled = false;
+                btn.innerText = 'Bắt Đầu Học';
+            }
+        }
+
+        function showQuestion() {
+            const q = quizData[currentIndex];
+            if (!q) return;
+
+            // Cập nhật giao diện câu hỏi
+            document.getElementById('progressLabel').innerText = `Câu hỏi ${currentIndex + 1}/${quizData.length}`;
+            document.getElementById('liveScore').innerText = `Điểm: ${score}`;
+            document.getElementById('questionText').innerText = q.question;
+
+            // Hình ảnh
+            const imgCont = document.getElementById('imageContainer');
+            if (q.image_url) {
+                imgCont.classList.remove('hidden');
+                document.getElementById('questionImage').src = q.image_url;
+            } else {
+                imgCont.classList.add('hidden');
+            }
+
+            const grid = document.getElementById('optionsGrid');
+            grid.innerHTML = '';
+
+            const answered = userAnswers[currentIndex] !== undefined;
+
+            q.options.forEach((opt, idx) => {
+                const card = document.createElement('div');
+                card.className = `option-card p-5 rounded-2xl font-bold text-slate-700 flex items-center shadow-sm`;
+                
+                // Logic hiển thị màu sắc nếu đã trả lời
+                if (answered) {
+                    card.classList.add('disabled');
+                    if (idx === q.answer_index) {
+                        card.classList.add('correct'); // Đáp án đúng luôn hiện xanh
+                    } else if (idx === userAnswers[currentIndex]) {
+                        card.classList.add('incorrect'); // Nếu chọn sai thì hiện đỏ
+                    }
+                }
+
+                card.innerHTML = `
+                    <span class="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center mr-4 text-sm shadow-inner">
+                        ${String.fromCharCode(65 + idx)}
+                    </span>
+                    <span class="flex-1">${opt}</span>
+                `;
+                
+                card.onclick = () => selectOption(idx);
+                grid.appendChild(card);
+            });
+
+            // Nút điều hướng
+            document.getElementById('btnPrev').style.visibility = currentIndex === 0 ? 'hidden' : 'visible';
+            const isLast = currentIndex === quizData.length - 1;
+            document.getElementById('btnNext').classList.toggle('hidden', isLast);
+            document.getElementById('btnSubmit').classList.toggle('hidden', !isLast);
+        }
+
+        function selectOption(idx) {
+            // Nếu câu này chưa được trả lời
+            if (userAnswers[currentIndex] === undefined) {
+                userAnswers[currentIndex] = idx;
+                
+                // Kiểm tra đúng sai để cộng điểm ngay
+                if (idx === quizData[currentIndex].answer_index) {
+                    score++;
+                }
+                
+                // Vẽ lại để hiện màu Đúng/Sai
+                showQuestion();
+            }
+        }
+
+        function nextQuestion() {
+            if (currentIndex < quizData.length - 1) {
+                currentIndex++;
+                showQuestion();
+            }
+        }
+
+        function prevQuestion() {
+            if (currentIndex > 0) {
+                currentIndex--;
+                showQuestion();
+            }
+        }
+
+        function showReview() {
+            document.getElementById('quizBox').classList.add('hidden');
+            document.getElementById('reviewBox').classList.remove('hidden');
+            document.getElementById('finalScore').innerText = `Bạn đúng ${score} / ${quizData.length} câu`;
+
+            const list = document.getElementById('reviewList');
+            list.innerHTML = '';
+
+            quizData.forEach((q, index) => {
+                const selected = userAnswers[index];
+                const isCorrect = selected === q.answer_index;
+                const item = document.createElement('div');
+                item.className = `bg-white p-6 rounded-2xl shadow-md border-l-8 ${isCorrect ? 'border-green-500' : 'border-red-500'}`;
+                item.innerHTML = `
+                    <p class="font-bold text-slate-800 mb-2">Câu ${index + 1}: ${q.question}</p>
+                    <p class="text-sm ${isCorrect ? 'text-green-600' : 'text-red-600'} font-bold">
+                        Lựa chọn của bạn: ${selected !== undefined ? q.options[selected] : 'Bỏ trống'}
+                    </p>
+                    ${!isCorrect ? `<p class="text-sm text-green-700 font-bold mt-1 italic">✓ Đáp án đúng: ${q.options[q.answer_index]}</p>` : ''}
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        function exitQuiz() {
+            if (confirm('Xác nhận thoát? Mọi tiến trình sẽ bị mất.')) location.reload();
+        }
+    </script>
+</body>
+</html>
